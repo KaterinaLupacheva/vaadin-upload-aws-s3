@@ -9,9 +9,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,6 +30,8 @@ public class UploadS3 extends Div {
     private final String secretKey;
     private final String bucketName;
 
+    private String objectKey;
+
     public UploadS3(String accessKey, String secretKey, String bucketName) {
         this.buffer = new MemoryBuffer();
         this.upload = new Upload(buffer);
@@ -35,7 +39,6 @@ public class UploadS3 extends Div {
         this.secretKey = secretKey;
         this.bucketName = bucketName;
         initAWSClient();
-        uploadFile();
         add(upload);
     }
 
@@ -47,16 +50,16 @@ public class UploadS3 extends Div {
                 .build();
     }
 
-    private void uploadFile() {
+    public void uploadFile(TextField link) {
         upload.addSucceededListener(event-> {
             try {
                 InputStream is = buffer.getInputStream();
                 File tempFile = new File(event.getFileName());
                 FileUtils.copyInputStreamToFile(is, tempFile);
 
-                String objectKey = tempFile.getName();
+                objectKey = tempFile.getName();
                 s3client.putObject(new PutObjectRequest(bucketName, objectKey, tempFile));
-                String url = s3client.getUrl(bucketName, objectKey).toString();
+                link.setValue(s3client.getUrl(bucketName, objectKey).toString());
                 if(tempFile.exists()) {
                     tempFile.delete();
                 }
@@ -64,5 +67,17 @@ public class UploadS3 extends Div {
                 ex.printStackTrace();
             }
         });
+    }
+
+    public byte[] downloadImage() {
+        byte[] imageBytes = new byte[0];
+        S3Object s3object = s3client.getObject(bucketName, objectKey);
+        S3ObjectInputStream inputStream = s3object.getObjectContent();
+        try {
+            imageBytes = IOUtils.toByteArray(inputStream);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return imageBytes;
     }
 }
